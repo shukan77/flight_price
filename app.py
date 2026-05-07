@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = 'mysql+pymysql://root:Pookievookie12 @localhost/flights'
+app.config["SQLALCHEMY_DATABASE_URI"] = 'mysql+pymysql://root:Pookievookie12@localhost/flights'
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -78,11 +78,14 @@ def search_flights():
     source = request.args.get('source')
     destination = request.args.get('destination')
     airline = request.args.get('airline')
-    flight_class = request.args.get('class')
+    flight_class = request.args.get('flight_class')
     stops = request.args.get('stops')
-    id=request.args.get('id')
-    
-    
+    min_price = request.args.get('min_price', type=int)
+    max_price = request.args.get('max_price', type=int)
+    sort_by = request.args.get('sort_by')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+
     query = Flight.query
 
     if source:
@@ -95,13 +98,23 @@ def search_flights():
         query = query.filter_by(flight_class=flight_class)
     if stops:
         query = query.filter_by(stops=stops)
-    if id:
-        query = query.filter_by(id=id)    
-        
+    if min_price:
+        query = query.filter(Flight.price >= min_price)
+    if max_price:
+        query = query.filter(Flight.price <= max_price)
+    if sort_by == 'price':
+        query = query.order_by(Flight.price)
+    elif sort_by == 'price_desc':
+        query = query.order_by(Flight.price.desc())
+    elif sort_by == 'duration':
+        query = query.order_by(Flight.duration)
+    elif sort_by == 'days_left':
+        query = query.order_by(Flight.days_left)
 
-    flights = query.limit(50).all()
+    flights = query.paginate(page=page, per_page=per_page, error_out=False)
+
     output = []
-    for flight in flights:
+    for flight in flights.items:
         data = {
             "id": flight.id,
             "airline": flight.airline,
@@ -117,5 +130,59 @@ def search_flights():
             "price": flight.price
         }
         output.append(data)
-    
-    return jsonify(output)
+
+    return jsonify({
+        "total": flights.total,
+        "pages": flights.pages,
+        "current_page": flights.page,
+        "per_page": per_page,
+        "flights": output
+    })
+@app.route('/flights', methods=['POST'])
+def add_flight():
+    data = request.json
+    flight = Flight(
+        airline=data['airline'],
+        flight=data['flight'],
+        source_city=data['source_city'],
+        departure_time=data['departure_time'],
+        stops=data['stops'],
+        arrival_time=data['arrival_time'],
+        destination_city=data['destination_city'],
+        flight_class=data['flight_class'],
+        duration=data['duration'],
+        days_left=data['days_left'],
+        price=data['price']
+    )
+    db.session.add(flight)
+    db.session.commit()
+    return jsonify({"message": "Flight added", "id": flight.id}), 201
+
+
+@app.route('/flights/<int:id>', methods=['PUT'])
+def update_flight(id):
+    flight = Flight.query.get_or_404(id)
+    data = request.json
+
+    flight.airline = data.get('airline', flight.airline)
+    flight.flight = data.get('flight', flight.flight)
+    flight.source_city = data.get('source_city', flight.source_city)
+    flight.departure_time = data.get('departure_time', flight.departure_time)
+    flight.stops = data.get('stops', flight.stops)
+    flight.arrival_time = data.get('arrival_time', flight.arrival_time)
+    flight.destination_city = data.get('destination_city', flight.destination_city)
+    flight_class = data.get('flight_class', flight.flight_class)
+    flight.duration = data.get('duration', flight.duration)
+    flight.days_left = data.get('days_left', flight.days_left)
+    flight.price = data.get('price', flight.price)
+
+    db.session.commit()
+    return jsonify({"message": "Flight updated"}), 200
+
+
+@app.route('/flights/<int:id>', methods=['DELETE'])
+def delete_flight(id):
+    flight = Flight.query.get_or_404(id)
+    db.session.delete(flight)
+    db.session.commit()
+    return jsonify({"message": "Flight deleted"}), 200

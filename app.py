@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = 'mysql+pymysql://root:Password123@localhost/flights'
+app.config["SQLALCHEMY_DATABASE_URI"] = 'mysql+pymysql://root:YinYang1227@localhost/flights'
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -22,8 +22,19 @@ class Flight(db.Model):
     days_left = db.Column(db.Integer)
     price = db.Column(db.Integer)
 
+
+
+class FlightDemand(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    flight_id = db.Column(db.Integer, db.ForeignKey('flight.id'), nullable=False)
+    view_count = db.Column(db.Integer, default=0) 
+    
+    
+    
 with app.app_context():
     db.create_all()
+    
+   
 
 @app.route('/')
 def index():
@@ -158,7 +169,7 @@ def add_flight():
     db.session.commit()
     return jsonify({"message": "Flight added", "id": flight.id}), 201
 
-
+ 
 @app.route('/flights/<int:id>', methods=['PUT'])
 def update_flight(id):
     flight = Flight.query.get_or_404(id)

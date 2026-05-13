@@ -197,3 +197,6 @@ def delete_flight(id):
     db.session.delete(flight)
     db.session.commit()
     return jsonify({"message": "Flight deleted"}), 200
+
+
+#id not working

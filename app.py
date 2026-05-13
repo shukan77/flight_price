@@ -67,6 +67,26 @@ def get_flights():
 @app.route('/flights/<int:id>')
 def get_flight(id):
     flight = Flight.query.get_or_404(id)
+    
+    demand = FlightDemand.query.filter_by(flight_id=id).first()
+    
+    if demand is None:
+        demand = FlightDemand(flight_id=id, view_count=1)
+        db.session.add(demand)
+    else:
+        demand.view_count += 1
+    
+    db.session.commit()
+    
+    if demand.view_count <= 10:
+        demand_price = flight.price
+    elif demand.view_count <= 50:
+        demand_price = round(flight.price * 1.1)
+    elif demand.view_count <= 100:
+        demand_price = round(flight.price * 1.2)
+    else:
+        demand_price = round(flight.price * 1.5)
+    
     return jsonify({
         "id": flight.id,
         "airline": flight.airline,
@@ -79,7 +99,9 @@ def get_flight(id):
         "class": flight.flight_class,
         "duration": flight.duration,
         "days_left": flight.days_left,
-        "price": flight.price
+        "original_price": flight.price,
+        "demand_price": demand_price,
+        "view_count": demand.view_count
     })
     
     
@@ -87,6 +109,7 @@ def get_flight(id):
 @app.route('/flights/search')
 def search_flights():
     source = request.args.get('source')
+    flight_id=request.args.get('id')
     destination = request.args.get('destination')
     airline = request.args.get('airline')
     flight_class = request.args.get('flight_class')
@@ -115,12 +138,14 @@ def search_flights():
         query = query.filter(Flight.price <= max_price)
     if sort_by == 'price':
         query = query.order_by(Flight.price)
+    if flight_id=='id':
+        query =query.filter_by(id)    
     elif sort_by == 'price_desc':
         query = query.order_by(Flight.price.desc())
     elif sort_by == 'duration':
         query = query.order_by(Flight.duration)
     elif sort_by == 'days_left':
-        query = query.order_by(Flight.days_left)
+        query = query.order_by(Flight.days_left)    
 
     flights = query.paginate(page=page, per_page=per_page, error_out=False)
 
@@ -199,4 +224,3 @@ def delete_flight(id):
     return jsonify({"message": "Flight deleted"}), 200
 
 
-#id not working
